@@ -41,7 +41,7 @@
     </div>
 
     <script>
-        const API_URL = '/api/artists'; 
+        const API_URL = 'http://localhost:8000/artists';
 
         document.addEventListener('DOMContentLoaded', fetchArtists);
         document.getElementById('artist-form').addEventListener('submit', handleFormSubmit);
@@ -140,7 +140,8 @@
             eventsList.style.display = 'block';
             
             try {
-                const res = await fetch(`/api/events?artist_name=${encodeURIComponent(name)}`); 
+                // ИСПРАВЛЕНО: теперь запрос идет напрямую на бэкенд
+                const res = await fetch(`http://localhost:8000/events?artist_name=${encodeURIComponent(name)}`); 
                 const events = await res.json();
                 
                 if (events.length === 0) {
