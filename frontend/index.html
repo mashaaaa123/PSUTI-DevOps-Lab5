@@ -41,8 +41,7 @@
     </div>
 
     <script>
-        // ВОЗВРАЩАЕМ ПУТИ ЧЕРЕЗ NGINX, ЧТОБЫ ИЗБЕЖАТЬ CORS
-        const API_URL = '/api/artists';
+        const API_URL = '/api/v1/artists';
 
         document.addEventListener('DOMContentLoaded', fetchArtists);
         document.getElementById('artist-form').addEventListener('submit', handleFormSubmit);
@@ -51,8 +50,9 @@
             try {
                 const response = await fetch(API_URL);
                 if (!response.ok) throw new Error('Ошибка сети');
-                const artists = await response.json();
-                renderArtists(artists);
+                const data = await response.json();
+                // Бэкенд возвращает объект с массивом в поле data, а не просто массив
+                renderArtists(data.data || data); 
             } catch (error) {
                 console.error('Ошибка при загрузке:', error);
             }
@@ -69,15 +69,16 @@
 
             artists.forEach(artist => {
                 const li = document.createElement('li');
+                // Бэкенд использует primary_genre_code вместо genre
                 li.innerHTML = `
-                    <div class="artist-info" onclick="toggleEvents(this)">
+                    <div class="artist-info" onclick="toggleEvents(this, '${artist.id}')">
                         <div class="artist-name">${artist.name}</div>
-                        <div>Жанр: ${artist.genre || 'Не указан'}</div>
+                        <div>Жанр: ${artist.primary_genre_code || 'Не указан'}</div>
                         <div class="events-list" id="events-${artist.id}">Загрузка событий...</div>
                     </div>
                     <div class="actions">
-                        <button class="edit" onclick="editArtist(${artist.id}, '${artist.name}', '${artist.genre || ''}')">Ред.</button>
-                        <button class="delete" onclick="deleteArtist(${artist.id})">Удалить</button>
+                        <button class="edit" onclick="editArtist('${artist.id}', '${artist.name}', '${artist.primary_genre_code || ''}')">Ред.</button>
+                        <button class="delete" onclick="deleteArtist('${artist.id}')">Удалить</button>
                     </div>
                 `;
                 list.appendChild(li);
@@ -90,14 +91,14 @@
             const name = document.getElementById('artist-name').value;
             const genre = document.getElementById('artist-genre').value;
 
-            const method = id ? 'PUT' : 'POST';
+            const method = id ? 'PATCH' : 'POST'; // Бэкенд использует PATCH для обновления
             const url = id ? `${API_URL}/${id}` : API_URL;
 
             try {
                 await fetch(url, {
                     method: method,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, genre })
+                    body: JSON.stringify({ name, primary_genre_code: genre })
                 });
                 resetForm();
                 fetchArtists();
@@ -129,8 +130,7 @@
             document.getElementById('submit-btn').textContent = 'Добавить';
         }
 
-        async function toggleEvents(element) {
-            const name = element.querySelector('.artist-name').textContent;
+        async function toggleEvents(element, artistId) {
             const eventsList = element.querySelector('.events-list');
             
             if (eventsList.style.display === 'block') {
@@ -141,14 +141,15 @@
             eventsList.style.display = 'block';
             
             try {
-                // ТУТ ТОЖЕ ВОЗВРАЩАЕМ ПУТЬ ЧЕРЕЗ NGINX
-                const res = await fetch(`/api/events?artist_name=${encodeURIComponent(name)}`); 
-                const events = await res.json();
+                // Запрашиваем события по ID артиста, как указано в openapi
+                const res = await fetch(`/api/v1/events?artist_id=${artistId}`); 
+                const data = await res.json();
+                const events = data.data || data; // Бэкенд может возвращать объект с data
                 
-                if (events.length === 0) {
+                if (!events || events.length === 0) {
                     eventsList.innerHTML = 'Нет событий';
                 } else {
-                    eventsList.innerHTML = events.map(e => `<div>📅 ${e.name} (${e.date})</div>`).join('');
+                    eventsList.innerHTML = events.map(e => `<div>📅 ${e.title} (${new Date(e.starts_at).toLocaleDateString()})</div>`).join('');
                 }
             } catch (err) {
                 eventsList.innerHTML = 'Не удалось загрузить события.';
