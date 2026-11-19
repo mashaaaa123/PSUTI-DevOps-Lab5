@@ -2,11 +2,9 @@ services:
   db:
     image: postgis/postgis:16-3.4
     environment:
-      PG_HOST: db
-      PG_PORT: 5432
-      PG_USER_NAME: ${POSTGRES_USER}
-      PG_USER_PASSWORD: ${POSTGRES_PASSWORD}
-      PG_DB_NAME: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,11 +18,11 @@ services:
   backend:
     image: ghcr.io/nelkor/kazan-events:latest
     environment:
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER}
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
-      DB_NAME: ${POSTGRES_DB}
+      PG_HOST: db
+      PG_PORT: 5432
+      PG_USER_NAME: ${POSTGRES_USER}
+      PG_USER_PASSWORD: ${POSTGRES_PASSWORD}
+      PG_DB_NAME: ${POSTGRES_DB}
     depends_on:
       db:
         condition: service_healthy
