@@ -41,7 +41,8 @@
     </div>
 
     <script>
-        const API_URL = 'http://localhost:8000/artists';
+        // ВОЗВРАЩАЕМ ПУТИ ЧЕРЕЗ NGINX, ЧТОБЫ ИЗБЕЖАТЬ CORS
+        const API_URL = '/api/artists';
 
         document.addEventListener('DOMContentLoaded', fetchArtists);
         document.getElementById('artist-form').addEventListener('submit', handleFormSubmit);
@@ -140,8 +141,8 @@
             eventsList.style.display = 'block';
             
             try {
-                // ИСПРАВЛЕНО: теперь запрос идет напрямую на бэкенд
-                const res = await fetch(`http://localhost:8000/events?artist_name=${encodeURIComponent(name)}`); 
+                // ТУТ ТОЖЕ ВОЗВРАЩАЕМ ПУТЬ ЧЕРЕЗ NGINX
+                const res = await fetch(`/api/events?artist_name=${encodeURIComponent(name)}`); 
                 const events = await res.json();
                 
                 if (events.length === 0) {
