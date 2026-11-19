@@ -17,8 +17,6 @@ services:
 
   backend:
     image: ghcr.io/nelkor/kazan-events:latest
-    ports:
-      - "8000:8000"
     environment:
       PG_HOST: db
       PG_PORT: 5432
