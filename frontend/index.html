@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Каталог артистов</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #333; }
+        form { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 1; }
+        button { padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #218838; }
+        button.delete { background: #dc3545; }
+        button.delete:hover { background: #c82333; }
+        button.edit { background: #ffc107; color: black; }
+        ul { list-style-type: none; padding: 0; }
+        li { background: #fff; border: 1px solid #ddd; margin-bottom: 10px; padding: 15px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .artist-info { flex: 1; cursor: pointer; }
+        .artist-name { font-weight: bold; font-size: 1.1em; }
+        .events-list { margin-top: 10px; font-size: 0.9em; color: #555; padding-left: 20px; display: none; }
+        .actions { display: flex; gap: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Каталог артистов и групп</h1>
+        
+        <h2>Добавить / Редактировать</h2>
+        <form id="artist-form">
+            <input type="hidden" id="artist-id">
+            <input type="text" id="artist-name" placeholder="Имя артиста или группы" required>
+            <input type="text" id="artist-genre" placeholder="Жанр">
+            <button type="submit" id="submit-btn">Добавить</button>
+            <button type="button" onclick="resetForm()" style="background: #6c757d;">Отмена</button>
+        </form>
+
+        <h2>Список артистов</h2>
+        <ul id="artists-list"></ul>
+    </div>
+
+    <script>
+        const API_URL = '/api/artists'; 
+
+        document.addEventListener('DOMContentLoaded', fetchArtists);
+        document.getElementById('artist-form').addEventListener('submit', handleFormSubmit);
+
+        async function fetchArtists() {
+            try {
+                const response = await fetch(API_URL);
+                if (!response.ok) throw new Error('Ошибка сети');
+                const artists = await response.json();
+                renderArtists(artists);
+            } catch (error) {
+                console.error('Ошибка при загрузке:', error);
+            }
+        }
+
+        function renderArtists(artists) {
+            const list = document.getElementById('artists-list');
+            list.innerHTML = '';
+            
+            if (!artists || artists.length === 0) {
+                list.innerHTML = '<li>Список пуст</li>';
+                return;
+            }
+
+            artists.forEach(artist => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <div class="artist-info" onclick="toggleEvents(this)">
+                        <div class="artist-name">${artist.name}</div>
+                        <div>Жанр: ${artist.genre || 'Не указан'}</div>
+                        <div class="events-list" id="events-${artist.id}">Загрузка событий...</div>
+                    </div>
+                    <div class="actions">
+                        <button class="edit" onclick="editArtist(${artist.id}, '${artist.name}', '${artist.genre || ''}')">Ред.</button>
+                        <button class="delete" onclick="deleteArtist(${artist.id})">Удалить</button>
+                    </div>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('artist-id').value;
+            const name = document.getElementById('artist-name').value;
+            const genre = document.getElementById('artist-genre').value;
+
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `${API_URL}/${id}` : API_URL;
+
+            try {
+                await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, genre })
+                });
+                resetForm();
+                fetchArtists();
+            } catch (error) {
+                console.error('Ошибка сохранения:', error);
+            }
+        }
+
+        async function deleteArtist(id) {
+            if (!confirm('Удалить артиста?')) return;
+            try {
+                await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+                fetchArtists();
+            } catch (error) {
+                console.error('Ошибка удаления:', error);
+            }
+        }
+
+        function editArtist(id, name, genre) {
+            document.getElementById('artist-id').value = id;
+            document.getElementById('artist-name').value = name;
+            document.getElementById('artist-genre').value = genre;
+            document.getElementById('submit-btn').textContent = 'Сохранить';
+        }
+
+        function resetForm() {
+            document.getElementById('artist-form').reset();
+            document.getElementById('artist-id').value = '';
+            document.getElementById('submit-btn').textContent = 'Добавить';
+        }
+
+        async function toggleEvents(element) {
+            const name = element.querySelector('.artist-name').textContent;
+            const eventsList = element.querySelector('.events-list');
+            
+            if (eventsList.style.display === 'block') {
+                eventsList.style.display = 'none';
+                return;
+            }
+            
+            eventsList.style.display = 'block';
+            
+            try {
+                const res = await fetch(`/api/events?artist_name=${encodeURIComponent(name)}`); 
+                const events = await res.json();
+                
+                if (events.length === 0) {
+                    eventsList.innerHTML = 'Нет событий';
+                } else {
+                    eventsList.innerHTML = events.map(e => `<div>📅 ${e.name} (${e.date})</div>`).join('');
+                }
+            } catch (err) {
+                eventsList.innerHTML = 'Не удалось загрузить события.';
+            }
+        }
+    </script>
+</body>
+</html>
