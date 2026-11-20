@@ -108,13 +108,51 @@
         }
 
         async function deleteArtist(id) {
-            if (!confirm('Удалить артиста?')) return;
+            if (!confirm('Удалить артиста и все его мероприятия?')) return;
+
             try {
-                await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-                fetchArtists();
+        
+                let response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+
+            
+                if (response.status === 409) {
+                    console.log('У артиста есть события. Начинаем каскадное удаление...');
+                    
+                    const eventsRes = await fetch(`/api/v1/events?artist_id=${id}`);
+                    if (!eventsRes.ok) throw new Error('Не удалось получить список событий');
+                    
+                    const eventsData = await eventsRes.json();
+                    const events = eventsData.data || eventsData; // Учитываем структуру ответа
+
+                 
+                    if (events && events.length > 0) {
+                    
+                        const deletePromises = events.map(event => 
+                            fetch(`/api/v1/events/${event.id}`, { method: 'DELETE' })
+                        );
+                        
+                      
+                        await Promise.all(deletePromises);
+                        console.log(`Удалено событий: ${events.length}`);
+                    }
+
+                    // 3. После удаления событий пробуем снова удалить артиста
+                    response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+                }
+
+                if (response.ok || response.status === 204) {
+                    console.log('Артист успешно удален');
+                    fetchArtists(); // Обновляем список на экране
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error?.message || `Ошибка сервера: ${response.status}`);
+                }
+
             } catch (error) {
                 console.error('Ошибка удаления:', error);
+                alert('Не удалось удалить артиста: ' + error.message);
             }
+        }
         }
 
         function editArtist(id, name, genre) {
