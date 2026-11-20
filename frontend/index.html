@@ -136,13 +136,12 @@
                         console.log(`Удалено событий: ${events.length}`);
                     }
 
-                    // 3. После удаления событий пробуем снова удалить артиста
                     response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
                 }
 
                 if (response.ok || response.status === 204) {
                     console.log('Артист успешно удален');
-                    fetchArtists(); // Обновляем список на экране
+                    fetchArtists(); 
                 } else {
                     const errorData = await response.json().catch(() => ({}));
                     throw new Error(errorData.error?.message || `Ошибка сервера: ${response.status}`);
@@ -152,8 +151,6 @@
                 console.error('Ошибка удаления:', error);
                 alert('Не удалось удалить артиста: ' + error.message);
             }
-        }
-        }
 
         function editArtist(id, name, genre) {
             document.getElementById('artist-id').value = id;
