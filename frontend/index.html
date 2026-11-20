@@ -51,7 +51,6 @@
                 const response = await fetch(API_URL);
                 if (!response.ok) throw new Error('Ошибка сети');
                 const data = await response.json();
-                // Бэкенд возвращает объект с массивом в поле data, а не просто массив
                 renderArtists(data.data || data); 
             } catch (error) {
                 console.error('Ошибка при загрузке:', error);
@@ -69,7 +68,6 @@
 
             artists.forEach(artist => {
                 const li = document.createElement('li');
-                // Бэкенд использует primary_genre_code вместо genre
                 li.innerHTML = `
                     <div class="artist-info" onclick="toggleEvents(this, '${artist.id}')">
                         <div class="artist-name">${artist.name}</div>
@@ -91,7 +89,7 @@
             const name = document.getElementById('artist-name').value;
             const genre = document.getElementById('artist-genre').value;
 
-            const method = id ? 'PATCH' : 'POST'; // Бэкенд использует PATCH для обновления
+            const method = id ? 'PATCH' : 'POST';
             const url = id ? `${API_URL}/${id}` : API_URL;
 
             try {
@@ -111,10 +109,9 @@
             if (!confirm('Удалить артиста и все его мероприятия?')) return;
 
             try {
-        
                 let response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
 
-            
+                // Если 409 Conflict (есть связанные события)
                 if (response.status === 409) {
                     console.log('У артиста есть события. Начинаем каскадное удаление...');
                     
@@ -122,20 +119,17 @@
                     if (!eventsRes.ok) throw new Error('Не удалось получить список событий');
                     
                     const eventsData = await eventsRes.json();
-                    const events = eventsData.data || eventsData; // Учитываем структуру ответа
+                    const events = eventsData.data || eventsData;
 
-                 
                     if (events && events.length > 0) {
-                    
                         const deletePromises = events.map(event => 
                             fetch(`/api/v1/events/${event.id}`, { method: 'DELETE' })
                         );
-                        
-                      
                         await Promise.all(deletePromises);
                         console.log(`Удалено событий: ${events.length}`);
                     }
 
+                
                     response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
                 }
 
@@ -151,6 +145,7 @@
                 console.error('Ошибка удаления:', error);
                 alert('Не удалось удалить артиста: ' + error.message);
             }
+        }
 
         function editArtist(id, name, genre) {
             document.getElementById('artist-id').value = id;
@@ -176,10 +171,9 @@
             eventsList.style.display = 'block';
             
             try {
-                // Запрашиваем события по ID артиста, как указано в openapi
                 const res = await fetch(`/api/v1/events?artist_id=${artistId}`); 
                 const data = await res.json();
-                const events = data.data || data; // Бэкенд может возвращать объект с data
+                const events = data.data || data;
                 
                 if (!events || events.length === 0) {
                     eventsList.innerHTML = 'Нет событий';
