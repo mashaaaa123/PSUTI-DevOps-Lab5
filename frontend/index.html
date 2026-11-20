@@ -104,37 +104,52 @@
                 console.error('Ошибка сохранения:', error);
             }
         }
-
         async function deleteArtist(id) {
-            if (!confirm('Удалить артиста и все его мероприятия?')) return;
+            if (!confirm('Удалить артиста и все его мероприятия (включая отмену броней)?')) return;
 
             try {
                 let response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
 
-                // Если 409 Conflict (есть связанные события)
                 if (response.status === 409) {
-                    console.log('У артиста есть события. Начинаем каскадное удаление...');
+                    console.log('У артиста есть события. Начинаем полную очистку...');
                     
-                    const eventsRes = await fetch(`/api/v1/events?artist_id=${id}`);
-                    if (!eventsRes.ok) throw new Error('Не удалось получить список событий');
-                    
+                    const eventsRes = await fetch(`/api/v1/events?artist_id=${id}&page_size=100`);
                     const eventsData = await eventsRes.json();
                     const events = eventsData.data || eventsData;
 
                     if (events && events.length > 0) {
-                        const deletePromises = events.map(event => 
-                            fetch(`/api/v1/events/${event.id}`, { method: 'DELETE' })
-                        );
-                        await Promise.all(deletePromises);
-                        console.log(`Удалено событий: ${events.length}`);
+                        for (const event of events) {
+                            console.log(`Обработка события: ${event.title}`);
+
+                            const resRes = await fetch(`/api/v1/reservations?event_id=${event.id}`);
+                            const resData = await resRes.json();
+                            const reservations = resData.data || resData;
+
+                            if (reservations && reservations.length > 0) {
+                                for (const res of reservations) {
+                                    if (res.status !== 'cancelled') {
+                                        await fetch(`/api/v1/reservations/${res.id}`, {
+                                            method: 'PATCH',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ status: 'cancelled' })
+                                        });
+                                    }
+                                }
+                            }
+
+                            const delEventRes = await fetch(`/api/v1/events/${event.id}`, { method: 'DELETE' });
+                            if (!delEventRes.ok) {
+                                throw new Error(`Не удалось удалить событие "${event.title}"`);
+                            }
+                        }
                     }
 
-                
+        
                     response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
                 }
 
                 if (response.ok || response.status === 204) {
-                    console.log('Артист успешно удален');
+                    console.log('Артист и все его связи успешно удалены');
                     fetchArtists(); 
                 } else {
                     const errorData = await response.json().catch(() => ({}));
@@ -143,10 +158,9 @@
 
             } catch (error) {
                 console.error('Ошибка удаления:', error);
-                alert('Не удалось удалить артиста: ' + error.message);
+                alert('Не удалось удалить: ' + error.message);
             }
         }
-
         function editArtist(id, name, genre) {
             document.getElementById('artist-id').value = id;
             document.getElementById('artist-name').value = name;
