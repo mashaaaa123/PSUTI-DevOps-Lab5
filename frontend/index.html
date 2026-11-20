@@ -104,6 +104,7 @@
                 console.error('Ошибка сохранения:', error);
             }
         }
+
         async function deleteArtist(id) {
             if (!confirm('Удалить артиста и все его мероприятия (включая отмену броней)?')) return;
 
@@ -111,7 +112,7 @@
                 let response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
 
                 if (response.status === 409) {
-                    console.log('У артиста есть события. Начинаем полную очистку...');
+                    console.log('У артиста есть события. Удаляем всё...');
                     
                     const eventsRes = await fetch(`/api/v1/events?artist_id=${id}&page_size=100`);
                     const eventsData = await eventsRes.json();
@@ -119,8 +120,6 @@
 
                     if (events && events.length > 0) {
                         for (const event of events) {
-                            console.log(`Обработка события: ${event.title}`);
-
                             const resRes = await fetch(`/api/v1/reservations?event_id=${event.id}`);
                             const resData = await resRes.json();
                             const reservations = resData.data || resData;
@@ -137,19 +136,15 @@
                                 }
                             }
 
-                            const delEventRes = await fetch(`/api/v1/events/${event.id}`, { method: 'DELETE' });
-                            if (!delEventRes.ok) {
-                                throw new Error(`Не удалось удалить событие "${event.title}"`);
-                            }
+                            await fetch(`/api/v1/events/${event.id}`, { method: 'DELETE' });
                         }
                     }
 
-        
                     response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
                 }
 
                 if (response.ok || response.status === 204) {
-                    console.log('Артист и все его связи успешно удалены');
+                    console.log('Артист удален!');
                     fetchArtists(); 
                 } else {
                     const errorData = await response.json().catch(() => ({}));
@@ -161,6 +156,7 @@
                 alert('Не удалось удалить: ' + error.message);
             }
         }
+
         function editArtist(id, name, genre) {
             document.getElementById('artist-id').value = id;
             document.getElementById('artist-name').value = name;
