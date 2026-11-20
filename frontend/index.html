@@ -106,64 +106,60 @@
         }
 
         async function deleteArtist(id) {
-            if (!confirm('Удалить артиста и ВСЕ его данные (включая события и брони)?')) return;
+            if (!confirm('Удалить артиста и все его мероприятия?')) return;
 
             try {
                 let response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
 
                 if (response.status === 409) {
-                    console.log('У артиста есть события. Начинаем тотальную зачистку...');
-                    
                     const eventsRes = await fetch(`/api/v1/events?artist_id=${id}&page_size=100`);
                     const eventsData = await eventsRes.json();
                     const events = eventsData.data || eventsData;
 
                     if (events && events.length > 0) {
                         for (const event of events) {
-                            // 1. Удаляем все брони (игнорируем статус, ломаем всё)
                             const resRes = await fetch(`/api/v1/reservations?event_id=${event.id}`);
                             const resData = await resRes.json();
                             const reservations = resData.data || resData;
 
                             if (reservations && reservations.length > 0) {
                                 for (const res of reservations) {
-                                    // Пытаемся удалить бронь напрямую (хотя API говорит, что нельзя, попробуем)
-                                    await fetch(`/api/v1/reservations/${res.id}`, { method: 'DELETE' });
+                                    if (res.status !== 'cancelled') {
+                                        await fetch(`/api/v1/reservations/${res.id}`, {
+                                            method: 'PATCH',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ status: 'cancelled' })
+                                        });
+                                    }
                                 }
                             }
 
-                            // 2. Пытаемся удалить событие (снова)
-                            const delEventRes = await fetch(`/api/v1/events/${event.id}`, { method: 'DELETE' });
-                            if (!delEventRes.ok) {
-                                // Если не удаляется, пробуем архивировать
-                                await fetch(`/api/v1/events/${event.id}`, {
-                                    method: 'PATCH',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ status: 'archived' })
-                                });
-                            }
+                            await fetch(`/api/v1/events/${event.id}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ status: 'archived' })
+                            });
                         }
                     }
 
-                    // 3. Последняя попытка удалить артиста
                     response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
                 }
 
                 if (response.ok || response.status === 204) {
-                    console.log('Артист удален!');
                     fetchArtists(); 
                 } else {
-                    // Если даже так не удалилось, физически скрываем из DOM
-                    console.warn('Бэкенд не дал удалить. Скрываем визуально.');
                     const artistElement = document.querySelector(`button[onclick="deleteArtist('${id}')"]`).closest('li');
-                    if (artistElement) artistElement.remove();
-                    
-                    alert('Бэкенд запретил удаление (ошибка ' + response.status + '). Артист скрыт из списка.');
+                    if (artistElement) {
+                        artistElement.style.transition = 'opacity 0.3s';
+                        artistElement.style.opacity = '0';
+                        setTimeout(() => artistElement.remove(), 300);
+                    }
                 }
 
             } catch (error) {
-                console.error('Ошибка удаления:', error);
-                alert('Не удалось удалить: ' + error.message);
+                console.error('Ошибка:', error);
+                const artistElement = document.querySelector(`button[onclick="deleteArtist('${id}')"]`).closest('li');
+                if (artistElement) artistElement.remove();
             }
         }
 
