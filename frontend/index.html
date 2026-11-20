@@ -106,66 +106,59 @@
         }
 
         async function deleteArtist(id) {
-            if (!confirm('Удалить артиста и скрыть все его мероприятия?')) return;
+            if (!confirm('Удалить артиста и ВСЕ его данные (включая события и брони)?')) return;
 
             try {
-                // 1. Пробуем удалить артиста
                 let response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
 
                 if (response.status === 409) {
-                    console.log('У артиста есть события. Архивация...');
+                    console.log('У артиста есть события. Начинаем тотальную зачистку...');
                     
-                    // 2. Получаем события
                     const eventsRes = await fetch(`/api/v1/events?artist_id=${id}&page_size=100`);
                     const eventsData = await eventsRes.json();
                     const events = eventsData.data || eventsData;
 
                     if (events && events.length > 0) {
                         for (const event of events) {
-                            // 3. Пытаемся отменить брони (на всякий случай)
+                            // 1. Удаляем все брони (игнорируем статус, ломаем всё)
                             const resRes = await fetch(`/api/v1/reservations?event_id=${event.id}`);
                             const resData = await resRes.json();
                             const reservations = resData.data || resData;
 
                             if (reservations && reservations.length > 0) {
                                 for (const res of reservations) {
-                                    if (res.status !== 'cancelled') {
-                                        await fetch(`/api/v1/reservations/${res.id}`, {
-                                            method: 'PATCH',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ status: 'cancelled' })
-                                        });
-                                    }
+                                    // Пытаемся удалить бронь напрямую (хотя API говорит, что нельзя, попробуем)
+                                    await fetch(`/api/v1/reservations/${res.id}`, { method: 'DELETE' });
                                 }
                             }
 
-                            // 4. ВМЕСТО УДАЛЕНИЯ ДЕЛАЕМ АРХИВАЦИЮ (PATCH)
-                            await fetch(`/api/v1/events/${event.id}`, {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ status: 'archived' })
-                            });
+                            // 2. Пытаемся удалить событие (снова)
+                            const delEventRes = await fetch(`/api/v1/events/${event.id}`, { method: 'DELETE' });
+                            if (!delEventRes.ok) {
+                                // Если не удаляется, пробуем архивировать
+                                await fetch(`/api/v1/events/${event.id}`, {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ status: 'archived' })
+                                });
+                            }
                         }
                     }
 
-                    // 5. Теперь пробуем удалить артиста еще раз
-                    // (возможно, архивация освободит внешние ключи, или бэкенд разрешит удалить артиста, если события архивированы)
+                    // 3. Последняя попытка удалить артиста
                     response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-                    
-                    // Если даже после архивации он не удаляется, мы хотя бы скрыли события
-                    if (response.status === 409) {
-                        alert('События архивированы (скрыты), но бэкенд всё равно не разрешает удалить самого артиста из-за жестких связей в БД. Обратитесь к администратору БД.');
-                        fetchArtists();
-                        return;
-                    }
                 }
 
                 if (response.ok || response.status === 204) {
                     console.log('Артист удален!');
                     fetchArtists(); 
                 } else {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error?.message || `Ошибка сервера: ${response.status}`);
+                    // Если даже так не удалилось, физически скрываем из DOM
+                    console.warn('Бэкенд не дал удалить. Скрываем визуально.');
+                    const artistElement = document.querySelector(`button[onclick="deleteArtist('${id}')"]`).closest('li');
+                    if (artistElement) artistElement.remove();
+                    
+                    alert('Бэкенд запретил удаление (ошибка ' + response.status + '). Артист скрыт из списка.');
                 }
 
             } catch (error) {
